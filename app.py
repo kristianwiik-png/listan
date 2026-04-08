@@ -1,5 +1,5 @@
 from flask import Flask, render_template_string, request, redirect, session
-from datetime import datetime, timedelta
+import sqlite3
 import os
 
 from googleapiclient.discovery import build
@@ -14,11 +14,52 @@ SCOPES = ['https://www.googleapis.com/auth/calendar']
 
 # ---------------- USERS ----------------
 USERS = {
-    "kristian": "baffebaffe",
-    "klara": "baffebaffe"
+    "kristian": "LÄGG_IN_LÖSENORD",
+    "person2": "LÄGG_IN_LÖSENORD"
 }
 
-# ---------------- Google Auth ----------------
+# ---------------- DB ----------------
+def init_db():
+    conn = sqlite3.connect("tasks.db")
+    c = conn.cursor()
+
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS tasks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        task TEXT,
+        category TEXT,
+        done INTEGER,
+        name TEXT,
+        date TEXT
+    )
+    """)
+
+    conn.commit()
+    conn.close()
+
+init_db()
+
+def get_tasks():
+    conn = sqlite3.connect("tasks.db")
+    c = conn.cursor()
+    c.execute("SELECT * FROM tasks")
+    rows = c.fetchall()
+    conn.close()
+
+    tasks = []
+    for r in rows:
+        tasks.append({
+            "id": r[0],
+            "task": r[1],
+            "category": r[2],
+            "done": bool(r[3]),
+            "name": r[4],
+            "date": r[5]
+        })
+
+    return tasks
+
+# ---------------- GOOGLE ----------------
 def get_service():
     creds = None
 
@@ -38,9 +79,6 @@ def get_service():
 
     return build('calendar', 'v3', credentials=creds)
 
-# ---------------- Data ----------------
-tasks = []
-
 # ---------------- LOGIN ----------------
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -51,10 +89,10 @@ def login():
         if username in USERS and USERS[username] == password:
             session["user"] = username
             return redirect("/")
-        return "Fel användarnamn eller lösenord"
+        return "Fel login"
 
     return """
-    <div style="text-align:center; margin-top:100px; font-family:Arial;">
+    <div style="text-align:center; margin-top:100px;">
         <h2>Login</h2>
         <form method="POST">
             <input name="username" placeholder="Användarnamn"><br><br>
@@ -74,129 +112,59 @@ HTML = """
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Todo App</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Todo</title>
 
-    <style>
-        body {
-            margin: 0;
-            font-family: -apple-system, BlinkMacSystemFont, Arial;
-            background: #0f172a;
-            color: #e2e8f0;
-        }
+<style>
+body { font-family: Arial; background:#0f172a; color:white; margin:0; }
+.container { max-width:900px; margin:auto; padding:15px; }
+.card { background:#1e293b; padding:15px; margin:10px 0; border-radius:10px; }
+.done { background:#14532d; }
+input, select { padding:8px; margin:5px; }
+button { padding:8px; margin:5px; cursor:pointer; }
+</style>
 
-        .container {
-            max-width: 1000px;
-            margin: auto;
-            padding: 15px;
-        }
-
-        h1 {
-            text-align: center;
-        }
-
-        .topbar {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 15px;
-        }
-
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-            gap: 12px;
-        }
-
-        .card {
-            background: #1e293b;
-            padding: 15px;
-            border-radius: 12px;
-        }
-
-        .card.done {
-            background: #14532d;
-        }
-
-        .btn {
-            padding: 8px;
-            border-radius: 6px;
-            border: none;
-            cursor: pointer;
-        }
-
-        .done-btn { background: #3b82f6; color: white; }
-        .delete-btn { background: #ef4444; color: white; }
-
-        input, select {
-            padding: 8px;
-            border-radius: 6px;
-            border: none;
-        }
-
-        form.add-form {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-            margin-bottom: 20px;
-        }
-
-        @media (max-width: 600px) {
-            form.add-form {
-                flex-direction: column;
-            }
-        }
-    </style>
 </head>
 <body>
 
 <div class="container">
 
-    <div class="topbar">
-        <div>Inloggad som: {{ user }}</div>
-        <a href="/logout" style="color:#fff;">Logga ut</a>
-    </div>
+<h3>Inloggad som {{ user }}</h3>
+<a href="/logout">Logga ut</a>
 
-    <h1>📋 Todo App</h1>
+<h1>Todo</h1>
 
-    <form class="add-form" method="POST" action="/add">
-        <input type="text" name="task" placeholder="Ny syssla" required>
+<form method="POST" action="/add">
+    <input name="task" placeholder="Task" required>
+    <select name="category">
+        <option>Gemensam</option>
+        <option>Klara</option>
+        <option>Kristian</option>
+    </select>
+    <button>Lägg till</button>
+</form>
 
-        <select name="category">
-            <option value="Gemensam">Gemensam</option>
-            <option value="Klara">Klara</option>
-            <option value="Kristian">Kristian</option>
-        </select>
+{% for t in tasks %}
+<div class="card {{ 'done' if t.done else '' }}">
+    <b>{{ t.task }}</b><br>
+    {{ t.category }}<br>
+    Status: {{ 'Klar' if t.done else 'Ej klar' }}
 
-        <button class="btn done-btn" type="submit">➕ Lägg till</button>
+    {% if not t.done %}
+    <form method="POST" action="/done">
+        <input type="hidden" name="id" value="{{ t.id }}">
+        <input name="name" placeholder="Namn" required>
+        <input type="date" name="date" required>
+        <button>Klar</button>
     </form>
+    {% endif %}
 
-    <div class="grid">
-        {% for t in tasks %}
-        <div class="card {{ 'done' if t.done else '' }}">
-
-            <b>{{ t.task }}</b><br><br>
-            Kategori: {{ t.category }}<br>
-            Status: {{ '✔ Klar' if t.done else '❌ Ej klar' }}<br>
-            Namn: {{ t.name or '-' }}<br>
-            Datum: {{ t.date or '-' }}<br><br>
-
-            {% if not t.done %}
-            <form method="POST" action="/done">
-                <input type="hidden" name="id" value="{{ loop.index0 }}">
-                <input type="text" name="name" placeholder="Namn" required>
-                <input type="date" name="date" required>
-                <button class="btn done-btn">✔ Klar</button>
-            </form>
-            {% endif %}
-
-            <form method="POST" action="/delete">
-                <input type="hidden" name="id" value="{{ loop.index0 }}">
-                <button class="btn delete-btn">Ta bort</button>
-            </form>
-
-        </div>
-        {% endfor %}
-    </div>
+    <form method="POST" action="/delete">
+        <input type="hidden" name="id" value="{{ t.id }}">
+        <button>Ta bort</button>
+    </form>
+</div>
+{% endfor %}
 
 </div>
 
@@ -210,20 +178,24 @@ def index():
     if "user" not in session:
         return redirect("/login")
 
-    return render_template_string(HTML, tasks=tasks, user=session["user"])
+    return render_template_string(HTML, tasks=get_tasks(), user=session["user"])
 
 @app.route("/add", methods=["POST"])
 def add():
     if "user" not in session:
         return redirect("/login")
 
-    tasks.append({
-        "task": request.form.get("task"),
-        "category": request.form.get("category"),
-        "done": False,
-        "name": "",
-        "date": ""
-    })
+    task = request.form.get("task")
+    category = request.form.get("category")
+
+    conn = sqlite3.connect("tasks.db")
+    c = conn.cursor()
+
+    c.execute("INSERT INTO tasks (task, category, done, name, date) VALUES (?, ?, 0, '', '')",
+              (task, category))
+
+    conn.commit()
+    conn.close()
 
     return redirect("/")
 
@@ -232,24 +204,26 @@ def done():
     if "user" not in session:
         return redirect("/login")
 
-    task_id = int(request.form.get("id"))
+    task_id = request.form.get("id")
     name = request.form.get("name")
     date_str = request.form.get("date")
 
-    tasks[task_id]["done"] = True
-    tasks[task_id]["name"] = name
-    tasks[task_id]["date"] = date_str
+    conn = sqlite3.connect("tasks.db")
+    c = conn.cursor()
+
+    c.execute("UPDATE tasks SET done=1, name=?, date=? WHERE id=?",
+              (name, date_str, task_id))
+
+    conn.commit()
+    conn.close()
 
     try:
         service = get_service()
 
-        start = datetime.strptime(date_str, "%Y-%m-%d")
-        end = start + timedelta(hours=1)
-
         event = {
-            'summary': f"{tasks[task_id]['task']} - Klar av {name}",
-            'start': {'dateTime': start.isoformat(), 'timeZone': 'Europe/Stockholm'},
-            'end': {'dateTime': end.isoformat(), 'timeZone': 'Europe/Stockholm'},
+            'summary': f"{name} klarade en uppgift",
+            'start': {'dateTime': date_str + "T10:00:00", 'timeZone': 'Europe/Stockholm'},
+            'end': {'dateTime': date_str + "T11:00:00", 'timeZone': 'Europe/Stockholm'},
         }
 
         service.events().insert(calendarId='primary', body=event).execute()
@@ -264,8 +238,16 @@ def delete():
     if "user" not in session:
         return redirect("/login")
 
-    task_id = int(request.form.get("id"))
-    tasks.pop(task_id)
+    task_id = request.form.get("id")
+
+    conn = sqlite3.connect("tasks.db")
+    c = conn.cursor()
+
+    c.execute("DELETE FROM tasks WHERE id=?", (task_id,))
+
+    conn.commit()
+    conn.close()
+
     return redirect("/")
 
 # ---------------- RUN ----------------
