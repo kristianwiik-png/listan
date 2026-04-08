@@ -14,8 +14,8 @@ SCOPES = ['https://www.googleapis.com/auth/calendar']
 
 # ---------------- USERS ----------------
 USERS = {
-    "kristian": "LÄGG_IN_LÖSENORD",
-    "person2": "LÄGG_IN_LÖSENORD"
+    "kristian": "baffebaffe",
+    "klara": "baffebaffe"
 }
 
 # ---------------- DATABASE ----------------
