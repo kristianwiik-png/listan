@@ -1,4 +1,4 @@
-from flask import Flask, render_template_string, request, redirect
+from flask import Flask, render_template_string, request, redirect, session
 from datetime import datetime, timedelta
 import os
 
@@ -8,8 +8,15 @@ from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 
 app = Flask(__name__)
+app.secret_key = "CHANGE_THIS_SECRET_KEY"
 
 SCOPES = ['https://www.googleapis.com/auth/calendar']
+
+# ---------------- USERS ----------------
+USERS = {
+    "kristian": "LÄGG_IN_DITT_LÖSENORD_HÄR",
+    "person2": "LÄGG_IN_ANDRA_LÖSENORD_HÄR"
+}
 
 # ---------------- Google Auth ----------------
 def get_service():
@@ -34,13 +41,40 @@ def get_service():
 # ---------------- Data ----------------
 tasks = []
 
-# ---------------- HTML (Card-based UI) ----------------
+# ---------------- LOGIN ----------------
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        username = request.form.get("username")
+        password = request.form.get("password")
+
+        if username in USERS and USERS[username] == password:
+            session["user"] = username
+            return redirect("/")
+        return "Fel användarnamn eller lösenord"
+
+    return """
+    <div style="text-align:center; margin-top:100px; font-family:Arial;">
+        <h2>Login</h2>
+        <form method="POST">
+            <input name="username" placeholder="Användarnamn"><br><br>
+            <input type="password" name="password" placeholder="Lösenord"><br><br>
+            <button type="submit">Logga in</button>
+        </form>
+    </div>
+    """
+
+@app.route("/logout")
+def logout():
+    session.pop("user", None)
+    return redirect("/login")
+
+# ---------------- HTML ----------------
 HTML = """
 <!DOCTYPE html>
 <html>
 <head>
     <title>Todo App</title>
-
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <style>
@@ -59,37 +93,12 @@ HTML = """
 
         h1 {
             text-align: center;
-            margin-bottom: 20px;
         }
 
-        form.add-form {
+        .topbar {
             display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-            margin-bottom: 20px;
-        }
-
-        input, select, button {
-            padding: 10px;
-            border-radius: 8px;
-            border: none;
-            font-size: 14px;
-        }
-
-        input, select {
-            flex: 1;
-            min-width: 120px;
-        }
-
-        button {
-            background: #22c55e;
-            color: white;
-            cursor: pointer;
-            font-weight: bold;
-        }
-
-        button:hover {
-            background: #16a34a;
+            justify-content: space-between;
+            margin-bottom: 15px;
         }
 
         .grid {
@@ -100,67 +109,40 @@ HTML = """
 
         .card {
             background: #1e293b;
-            border-radius: 12px;
             padding: 15px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            border-radius: 12px;
         }
 
         .card.done {
             background: #14532d;
         }
 
-        .title {
-            font-size: 16px;
-            font-weight: bold;
-            margin-bottom: 8px;
+        .btn {
+            padding: 8px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
         }
 
-        .meta {
-            font-size: 13px;
-            opacity: 0.8;
-            margin-bottom: 10px;
+        .done-btn { background: #3b82f6; color: white; }
+        .delete-btn { background: #ef4444; color: white; }
+
+        input, select {
+            padding: 8px;
+            border-radius: 6px;
+            border: none;
         }
 
-        .status {
-            font-size: 14px;
-            margin-bottom: 10px;
-        }
-
-        .actions {
+        form.add-form {
             display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-
-        .actions form {
-            display: flex;
-            gap: 6px;
+            gap: 8px;
             flex-wrap: wrap;
-        }
-
-        .actions input {
-            flex: 1;
-        }
-
-        .btn-done {
-            background: #3b82f6;
-        }
-
-        .btn-delete {
-            background: #ef4444;
-        }
-
-        .btn-delete:hover {
-            background: #dc2626;
+            margin-bottom: 20px;
         }
 
         @media (max-width: 600px) {
             form.add-form {
                 flex-direction: column;
-            }
-
-            input, select, button {
-                width: 100%;
             }
         }
     </style>
@@ -168,6 +150,12 @@ HTML = """
 <body>
 
 <div class="container">
+
+    <div class="topbar">
+        <div>Inloggad som: {{ user }}</div>
+        <a href="/logout" style="color:#fff;">Logga ut</a>
+    </div>
+
     <h1>📋 Todo App</h1>
 
     <form class="add-form" method="POST" action="/add">
@@ -179,42 +167,33 @@ HTML = """
             <option value="Kristian">Kristian</option>
         </select>
 
-        <button type="submit">➕ Lägg till</button>
+        <button class="btn done-btn" type="submit">➕ Lägg till</button>
     </form>
 
     <div class="grid">
         {% for t in tasks %}
         <div class="card {{ 'done' if t.done else '' }}">
 
-            <div class="title">{{ t.task }}</div>
-            <div class="meta">Kategori: {{ t.category }}</div>
+            <b>{{ t.task }}</b><br><br>
+            Kategori: {{ t.category }}<br>
+            Status: {{ '✔ Klar' if t.done else '❌ Ej klar' }}<br>
+            Namn: {{ t.name or '-' }}<br>
+            Datum: {{ t.date or '-' }}<br><br>
 
-            <div class="status">
-                Status: {{ '✔ Klar' if t.done else '❌ Ej klar' }}
-            </div>
+            {% if not t.done %}
+            <form method="POST" action="/done">
+                <input type="hidden" name="id" value="{{ loop.index0 }}">
+                <input type="text" name="name" placeholder="Namn" required>
+                <input type="date" name="date" required>
+                <button class="btn done-btn">✔ Klar</button>
+            </form>
+            {% endif %}
 
-            <div class="meta">
-                Namn: {{ t.name if t.name else '-' }}<br>
-                Datum: {{ t.date if t.date else '-' }}
-            </div>
+            <form method="POST" action="/delete">
+                <input type="hidden" name="id" value="{{ loop.index0 }}">
+                <button class="btn delete-btn">Ta bort</button>
+            </form>
 
-            <div class="actions">
-
-                {% if not t.done %}
-                <form method="POST" action="/done">
-                    <input type="hidden" name="id" value="{{ loop.index0 }}">
-                    <input type="text" name="name" placeholder="Namn" required>
-                    <input type="date" name="date" required>
-                    <button class="btn-done" type="submit">✔ Klar</button>
-                </form>
-                {% endif %}
-
-                <form method="POST" action="/delete">
-                    <input type="hidden" name="id" value="{{ loop.index0 }}">
-                    <button class="btn-delete" type="submit">Ta bort</button>
-                </form>
-
-            </div>
         </div>
         {% endfor %}
     </div>
@@ -225,19 +204,22 @@ HTML = """
 </html>
 """
 
-# ---------------- Routes ----------------
+# ---------------- ROUTES ----------------
 @app.route("/")
 def index():
-    return render_template_string(HTML, tasks=tasks)
+    if "user" not in session:
+        return redirect("/login")
+
+    return render_template_string(HTML, tasks=tasks, user=session["user"])
 
 @app.route("/add", methods=["POST"])
 def add():
-    task = request.form.get("task")
-    category = request.form.get("category")
+    if "user" not in session:
+        return redirect("/login")
 
     tasks.append({
-        "task": task,
-        "category": category,
+        "task": request.form.get("task"),
+        "category": request.form.get("category"),
         "done": False,
         "name": "",
         "date": ""
@@ -247,6 +229,9 @@ def add():
 
 @app.route("/done", methods=["POST"])
 def done():
+    if "user" not in session:
+        return redirect("/login")
+
     task_id = int(request.form.get("id"))
     name = request.form.get("name")
     date_str = request.form.get("date")
@@ -255,7 +240,6 @@ def done():
     tasks[task_id]["name"] = name
     tasks[task_id]["date"] = date_str
 
-    # Google Calendar
     try:
         service = get_service()
 
@@ -264,14 +248,8 @@ def done():
 
         event = {
             'summary': f"{tasks[task_id]['task']} - Klar av {name}",
-            'start': {
-                'dateTime': start.isoformat(),
-                'timeZone': 'Europe/Stockholm',
-            },
-            'end': {
-                'dateTime': end.isoformat(),
-                'timeZone': 'Europe/Stockholm',
-            },
+            'start': {'dateTime': start.isoformat(), 'timeZone': 'Europe/Stockholm'},
+            'end': {'dateTime': end.isoformat(), 'timeZone': 'Europe/Stockholm'},
         }
 
         service.events().insert(calendarId='primary', body=event).execute()
@@ -283,10 +261,13 @@ def done():
 
 @app.route("/delete", methods=["POST"])
 def delete():
+    if "user" not in session:
+        return redirect("/login")
+
     task_id = int(request.form.get("id"))
     tasks.pop(task_id)
     return redirect("/")
 
-# ---------------- Run ----------------
+# ---------------- RUN ----------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
