@@ -18,7 +18,7 @@ USERS = {
     "person2": "LÄGG_IN_LÖSENORD"
 }
 
-# ---------------- DB ----------------
+# ---------------- DATABASE ----------------
 def init_db():
     conn = sqlite3.connect("tasks.db")
     c = conn.cursor()
@@ -59,7 +59,7 @@ def get_tasks():
 
     return tasks
 
-# ---------------- GOOGLE ----------------
+# ---------------- GOOGLE CALENDAR ----------------
 def get_service():
     creds = None
 
@@ -89,10 +89,10 @@ def login():
         if username in USERS and USERS[username] == password:
             session["user"] = username
             return redirect("/")
-        return "Fel login"
+        return "Fel användarnamn eller lösenord"
 
     return """
-    <div style="text-align:center; margin-top:100px;">
+    <div style="text-align:center; margin-top:100px; font-family:Arial;">
         <h2>Login</h2>
         <form method="POST">
             <input name="username" placeholder="Användarnamn"><br><br>
@@ -107,7 +107,7 @@ def logout():
     session.pop("user", None)
     return redirect("/login")
 
-# ---------------- HTML ----------------
+# ---------------- HTML DESIGN ----------------
 HTML = """
 <!DOCTYPE html>
 <html>
@@ -116,12 +116,126 @@ HTML = """
 <title>Todo</title>
 
 <style>
-body { font-family: Arial; background:#0f172a; color:white; margin:0; }
-.container { max-width:900px; margin:auto; padding:15px; }
-.card { background:#1e293b; padding:15px; margin:10px 0; border-radius:10px; }
-.done { background:#14532d; }
-input, select { padding:8px; margin:5px; }
-button { padding:8px; margin:5px; cursor:pointer; }
+body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, Arial;
+    background: #0f172a;
+    color: #e2e8f0;
+}
+
+.container {
+    max-width: 1100px;
+    margin: auto;
+    padding: 16px;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+}
+
+h1 {
+    font-size: 24px;
+}
+
+a {
+    color: #60a5fa;
+    text-decoration: none;
+}
+
+form.add-form {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+}
+
+input, select {
+    padding: 10px;
+    border-radius: 8px;
+    border: none;
+    width: 100%;
+    max-width: 260px;
+}
+
+button {
+    padding: 10px 14px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+}
+
+.btn-add {
+    background: #3b82f6;
+    color: white;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 12px;
+}
+
+.card {
+    background: #1e293b;
+    padding: 14px;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.card.done {
+    background: #14532d;
+}
+
+.card-title {
+    font-weight: bold;
+    font-size: 16px;
+}
+
+.small {
+    font-size: 13px;
+    opacity: 0.8;
+}
+
+.actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+}
+
+.btn-done {
+    background: #22c55e;
+    color: white;
+}
+
+.btn-delete {
+    background: #ef4444;
+    color: white;
+}
+
+@media (max-width: 600px) {
+    h1 {
+        font-size: 20px;
+    }
+
+    input, select {
+        max-width: 100%;
+    }
+
+    .actions {
+        flex-direction: column;
+    }
+
+    button {
+        width: 100%;
+    }
+}
 </style>
 
 </head>
@@ -129,42 +243,57 @@ button { padding:8px; margin:5px; cursor:pointer; }
 
 <div class="container">
 
-<h3>Inloggad som {{ user }}</h3>
-<a href="/logout">Logga ut</a>
+<div class="header">
+    <div>Inloggad som: <b>{{ user }}</b></div>
+    <a href="/logout">Logga ut</a>
+</div>
 
-<h1>Todo</h1>
+<h1>📋 Todo</h1>
 
-<form method="POST" action="/add">
-    <input name="task" placeholder="Task" required>
+<form class="add-form" method="POST" action="/add">
+    <input name="task" placeholder="Ny uppgift" required>
     <select name="category">
         <option>Gemensam</option>
         <option>Klara</option>
         <option>Kristian</option>
     </select>
-    <button>Lägg till</button>
+    <button class="btn-add" type="submit">➕ Lägg till</button>
 </form>
 
+<div class="grid">
 {% for t in tasks %}
 <div class="card {{ 'done' if t.done else '' }}">
-    <b>{{ t.task }}</b><br>
-    {{ t.category }}<br>
-    Status: {{ 'Klar' if t.done else 'Ej klar' }}
+
+    <div class="card-title">{{ t.task }}</div>
+
+    <div class="small">Kategori: {{ t.category }}</div>
+    <div class="small">Status: {{ '✔ Klar' if t.done else '❌ Ej klar' }}</div>
+
+    {% if t.name %}
+    <div class="small">Av: {{ t.name }}</div>
+    {% endif %}
+
+    {% if t.date %}
+    <div class="small">Datum: {{ t.date }}</div>
+    {% endif %}
 
     {% if not t.done %}
-    <form method="POST" action="/done">
+    <form method="POST" action="/done" class="actions">
         <input type="hidden" name="id" value="{{ t.id }}">
-        <input name="name" placeholder="Namn" required>
+        <input type="text" name="name" placeholder="Namn" required>
         <input type="date" name="date" required>
-        <button>Klar</button>
+        <button class="btn-done">✔ Klar</button>
     </form>
     {% endif %}
 
     <form method="POST" action="/delete">
         <input type="hidden" name="id" value="{{ t.id }}">
-        <button>Ta bort</button>
+        <button class="btn-delete">🗑 Ta bort</button>
     </form>
+
 </div>
 {% endfor %}
+</div>
 
 </div>
 
