@@ -34,21 +34,26 @@ def get_service():
 # ---------------- Data ----------------
 tasks = []
 
-# ---------------- HTML ----------------
+# ---------------- HTML (Card-based UI) ----------------
 HTML = """
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Todo List</title>
+    <title>Todo App</title>
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <style>
         body {
-            font-family: -apple-system, BlinkMacSystemFont, Arial;
-            background: #121212;
-            color: #f1f1f1;
             margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, Arial;
+            background: #0f172a;
+            color: #e2e8f0;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: auto;
             padding: 15px;
         }
 
@@ -57,15 +62,10 @@ HTML = """
             margin-bottom: 20px;
         }
 
-        .container {
-            max-width: 900px;
-            margin: auto;
-        }
-
-        form {
+        form.add-form {
             display: flex;
-            flex-wrap: wrap;
             gap: 8px;
+            flex-wrap: wrap;
             margin-bottom: 20px;
         }
 
@@ -82,70 +82,85 @@ HTML = """
         }
 
         button {
-            background: #4CAF50;
+            background: #22c55e;
             color: white;
             cursor: pointer;
             font-weight: bold;
         }
 
         button:hover {
-            background: #45a049;
+            background: #16a34a;
         }
 
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            background: #1e1e1e;
-            border-radius: 10px;
-            overflow: hidden;
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 12px;
         }
 
-        th {
-            background: #000;
-            padding: 12px;
-            text-align: left;
+        .card {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 15px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
         }
 
-        td {
-            padding: 10px;
-            border-bottom: 1px solid #333;
+        .card.done {
+            background: #14532d;
         }
 
-        tr.done {
-            background: #1b5e20;
+        .title {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+
+        .meta {
+            font-size: 13px;
+            opacity: 0.8;
+            margin-bottom: 10px;
+        }
+
+        .status {
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+
+        .actions {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
         }
 
         .actions form {
-            display: inline;
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
         }
 
-        .delete-btn {
-            background: #e74c3c;
+        .actions input {
+            flex: 1;
         }
 
-        .delete-btn:hover {
-            background: #c0392b;
+        .btn-done {
+            background: #3b82f6;
         }
 
-        .done-btn {
-            background: #3498db;
+        .btn-delete {
+            background: #ef4444;
         }
 
-        .done-btn:hover {
-            background: #2980b9;
+        .btn-delete:hover {
+            background: #dc2626;
         }
 
         @media (max-width: 600px) {
-            form {
+            form.add-form {
                 flex-direction: column;
             }
 
             input, select, button {
                 width: 100%;
-            }
-
-            table, th, td {
-                font-size: 12px;
             }
         }
     </style>
@@ -153,9 +168,9 @@ HTML = """
 <body>
 
 <div class="container">
-    <h1>📋 Todo List</h1>
+    <h1>📋 Todo App</h1>
 
-    <form method="POST" action="/add">
+    <form class="add-form" method="POST" action="/add">
         <input type="text" name="task" placeholder="Ny syssla" required>
 
         <select name="category">
@@ -167,43 +182,43 @@ HTML = """
         <button type="submit">➕ Lägg till</button>
     </form>
 
-    <table>
-        <tr>
-            <th>Syssla</th>
-            <th>Kategori</th>
-            <th>Status</th>
-            <th>Namn</th>
-            <th>Datum</th>
-            <th>Action</th>
-        </tr>
-
+    <div class="grid">
         {% for t in tasks %}
-        <tr class="{{ 'done' if t.done else '' }}">
-            <td>{{ t.task }}</td>
-            <td>{{ t.category }}</td>
-            <td>{{ '✔️' if t.done else '❌' }}</td>
-            <td>{{ t.name }}</td>
-            <td>{{ t.date }}</td>
-            <td class="actions">
+        <div class="card {{ 'done' if t.done else '' }}">
+
+            <div class="title">{{ t.task }}</div>
+            <div class="meta">Kategori: {{ t.category }}</div>
+
+            <div class="status">
+                Status: {{ '✔ Klar' if t.done else '❌ Ej klar' }}
+            </div>
+
+            <div class="meta">
+                Namn: {{ t.name if t.name else '-' }}<br>
+                Datum: {{ t.date if t.date else '-' }}
+            </div>
+
+            <div class="actions">
 
                 {% if not t.done %}
                 <form method="POST" action="/done">
                     <input type="hidden" name="id" value="{{ loop.index0 }}">
                     <input type="text" name="name" placeholder="Namn" required>
                     <input type="date" name="date" required>
-                    <button class="done-btn" type="submit">✔ Klar</button>
+                    <button class="btn-done" type="submit">✔ Klar</button>
                 </form>
                 {% endif %}
 
                 <form method="POST" action="/delete">
                     <input type="hidden" name="id" value="{{ loop.index0 }}">
-                    <button class="delete-btn" type="submit">Ta bort</button>
+                    <button class="btn-delete" type="submit">Ta bort</button>
                 </form>
 
-            </td>
-        </tr>
+            </div>
+        </div>
         {% endfor %}
-    </table>
+    </div>
+
 </div>
 
 </body>
