@@ -31,38 +31,141 @@ def get_service():
 
     return build('calendar', 'v3', credentials=creds)
 
-# ---------------- Data (in-memory) ----------------
+# ---------------- Data ----------------
 tasks = []
 
-# ---------------- HTML Template ----------------
+# ---------------- HTML ----------------
 HTML = """
 <!DOCTYPE html>
 <html>
 <head>
     <title>Todo List</title>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <style>
-        body { font-family: Arial; background:#2c3e50; color:white; text-align:center; }
-        input, button { padding:10px; margin:5px; }
-        table { margin:auto; border-collapse: collapse; width:80%; }
-        th, td { border:1px solid #555; padding:10px; }
-        th { background:#1a252f; }
-        tr.done { background:#2ecc71; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, Arial;
+            background: #121212;
+            color: #f1f1f1;
+            margin: 0;
+            padding: 15px;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: auto;
+        }
+
+        form {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        input, select, button {
+            padding: 10px;
+            border-radius: 8px;
+            border: none;
+            font-size: 14px;
+        }
+
+        input, select {
+            flex: 1;
+            min-width: 120px;
+        }
+
+        button {
+            background: #4CAF50;
+            color: white;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        button:hover {
+            background: #45a049;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #1e1e1e;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        th {
+            background: #000;
+            padding: 12px;
+            text-align: left;
+        }
+
+        td {
+            padding: 10px;
+            border-bottom: 1px solid #333;
+        }
+
+        tr.done {
+            background: #1b5e20;
+        }
+
+        .actions form {
+            display: inline;
+        }
+
+        .delete-btn {
+            background: #e74c3c;
+        }
+
+        .delete-btn:hover {
+            background: #c0392b;
+        }
+
+        .done-btn {
+            background: #3498db;
+        }
+
+        .done-btn:hover {
+            background: #2980b9;
+        }
+
+        @media (max-width: 600px) {
+            form {
+                flex-direction: column;
+            }
+
+            input, select, button {
+                width: 100%;
+            }
+
+            table, th, td {
+                font-size: 12px;
+            }
+        }
     </style>
 </head>
 <body>
-    <h1>Todo List</h1>
+
+<div class="container">
+    <h1>📋 Todo List</h1>
 
     <form method="POST" action="/add">
         <input type="text" name="task" placeholder="Ny syssla" required>
+
         <select name="category">
             <option value="Gemensam">Gemensam</option>
             <option value="Klara">Klara</option>
             <option value="Kristian">Kristian</option>
         </select>
-        <button type="submit">Lägg till</button>
-    </form>
 
-    <br>
+        <button type="submit">➕ Lägg till</button>
+    </form>
 
     <table>
         <tr>
@@ -73,6 +176,7 @@ HTML = """
             <th>Datum</th>
             <th>Action</th>
         </tr>
+
         {% for t in tasks %}
         <tr class="{{ 'done' if t.done else '' }}">
             <td>{{ t.task }}</td>
@@ -80,23 +184,28 @@ HTML = """
             <td>{{ '✔️' if t.done else '❌' }}</td>
             <td>{{ t.name }}</td>
             <td>{{ t.date }}</td>
-            <td>
+            <td class="actions">
+
                 {% if not t.done %}
-                <form method="POST" action="/done" style="display:inline;">
+                <form method="POST" action="/done">
                     <input type="hidden" name="id" value="{{ loop.index0 }}">
-                    <input type="text" name="name" placeholder="Ditt namn" required>
+                    <input type="text" name="name" placeholder="Namn" required>
                     <input type="date" name="date" required>
-                    <button type="submit">✔ Klar</button>
+                    <button class="done-btn" type="submit">✔ Klar</button>
                 </form>
                 {% endif %}
-                <form method="POST" action="/delete" style="display:inline;">
+
+                <form method="POST" action="/delete">
                     <input type="hidden" name="id" value="{{ loop.index0 }}">
-                    <button type="submit">Ta bort</button>
+                    <button class="delete-btn" type="submit">Ta bort</button>
                 </form>
+
             </td>
         </tr>
         {% endfor %}
     </table>
+</div>
+
 </body>
 </html>
 """
@@ -131,7 +240,7 @@ def done():
     tasks[task_id]["name"] = name
     tasks[task_id]["date"] = date_str
 
-    # Create Google Calendar event
+    # Google Calendar
     try:
         service = get_service()
 
